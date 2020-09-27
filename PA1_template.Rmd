@@ -5,21 +5,123 @@ output:
     keep_md: true
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+```{r, include=FALSE, cache=FALSE, echo=FALSE}
+library(rmarkdown)
+```
 
+## Loading and preprocessing the data  
+...       
+Here I change my locale to English, load the libraries I am going to use, unzip the file and load the file to a new variable called activity_data. There is a little transformation of the date column to be a date type column.  
+...  
 
+```{r}
+Sys.setlocale("LC_TIME", "English")
+library(scales)
+library(dplyr)
+library(ggplot2)
+library(lattice)
+file <- unzip("activity.zip")
+activity_data <- read.csv(file, header=TRUE, sep=",")
+activity_data$date <- as.Date(activity_data$date)
+```
+...  
 
 ## What is mean total number of steps taken per day?
+...       
+In the following code I am answering the question "What is the mean total number of steps taken per day?". I just group the activity data by date and display the results.  
+...  
+```{r}
+activity_data %>% dplyr::group_by(date) %>% dplyr::summarize(sum_steps=sum(steps, na.rm=TRUE), .groups="keep") %>% print(n=Inf)
+```
 
+...       
+Here is the corresponding histogram showing the total number of steps taken each day.
+...  
+```{r}
+ggplot(data=activity_data,aes(x=date,y=steps)) + geom_histogram(stat="identity", fill="blue") + labs(x="Date", y="Steps taken", title ="Steps taken per day")
 
+```
+
+...       
+Now showing what the mean and median of the total number of steps taken per day.
+...  
+```{r}
+activity_data %>% dplyr::group_by(date) %>% dplyr::summarize(mean_steps=mean(steps, na.rm=TRUE), median_steps=median(steps, na.rm=TRUE)) %>% print(n=Inf)
+```
 
 ## What is the average daily activity pattern?
+...       
+Here I show a plot of the daily activity pattern with the 5-minutes interval as the x-axis value. To do that I decided to create a new DF called avg_daily_pattern and grouping by interval.
+...  
+```{r}
+avg_daily_pattern <- activity_data %>% dplyr::group_by(interval) %>% dplyr::summarize(avg_steps=mean(steps, na.rm = TRUE))
 
+plot(avg_daily_pattern$interval, avg_daily_pattern$avg_steps, type="l", xlab="Interval", ylab="Average daily steps", col="blue", lwd=2, main="Average daily steps per 5-minutes interval")
+```
 
+...       
+Here is the interval with the maximum number of steps.  
+...    
+```{r}
+avg_daily_pattern %>% filter(avg_steps == max(avg_steps))
+```
 
 ## Imputing missing values
+...       
+List of the rows with missing values.
+...
+```{r}
+sum(!complete.cases(activity_data))
+```
 
+...       
+The strategy to fill the missing values is simple. Just replace the NAs with the average of steps in the giving interval. As result I created a new DF called activity_data_fill
+...
+```{r}
+avg_pattern <- function(x) replace(x, is.na(x), mean(x, na.rm=TRUE))
 
+activity_data_fill <- plyr::ddply(activity_data, ~interval, transform, steps = avg_pattern(steps))
+
+#activity_data_fill[order(activity_data_fill$date), ]
+```
+
+...       
+Histogram showing the total number of steps taken each day.
+...
+```{r}
+ggplot(data=activity_data_fill,aes(x=date,y=steps))+ geom_bar(stat="identity", fill="red") + labs(x="Date", y="Steps taken", title="Steps taken per day (using filled NA values)")
+```
+
+...       
+Report of the mean and median total number of steps taken per day. Here we can see that the values doesn't differ from the values of the first part of the assignment. There is no impact in the imputing of values to the NAs
+...
+```{r}
+adf_mean_steps <- activity_data_fill %>% dplyr::group_by(date) %>% dplyr::summarize(mean_steps=mean(steps, na.rm=TRUE), median_steps=median(steps, na.rm=TRUE))
+
+adf_mean_steps %>% print(n=Inf)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+...       
+I created a new factor variable in the activity data DF, called day_type to show if a day is a week day or a weekend day
+...
+```{r}
+weekday_list <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+
+activity_data["day_type"] <- c("weekend", "weekday")[(weekdays(activity_data$date) %in% weekday_list)+1L]
+```
+
+...       
+Drawing a plot using the lattice system showing the patterns between weekdays and weekends
+...
+```{r}
+avg_daily_pattern_wd <- activity_data %>% dplyr::group_by(interval, day_type) %>% dplyr::summarize(avg_steps=mean(steps, na.rm = TRUE))
+
+xyplot(avg_steps~interval|day_type, data=avg_daily_pattern_wd, groups=day_type, type="l", layout=c(1,2), main="Steps taken by interval on weekends and weekdays", ylab="Average Steps", xlab="Interval")
+
+```
+
